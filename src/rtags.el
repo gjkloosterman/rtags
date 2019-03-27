@@ -1270,7 +1270,8 @@ to only call this when `rtags-socket-address' is defined.
                              &allow-other-keys)
   (save-excursion
     (let ((rc (rtags-executable-find rtags-rc-binary-name))
-          (tempfile))
+          (tempfile)
+          (unsaved-file))
       (if (not rc)
           (unless noerror (rtags--error 'rtags-cannot-find-rc))
         (setq output (rtags--convert-output-buffer output))
@@ -1288,9 +1289,10 @@ to only call this when `rtags-socket-address' is defined.
           (push (concat "--path-filter=" (rtags-untrampify path-filter)) arguments)
           (when path-filter-regex
             (push "-Z" arguments)))
-        (when (and unsaved (rtags-buffer-file-name unsaved))
-          (setq tempfile (make-temp-file "/tmp/"))
-          (push (format "--unsaved-file=%s:%s" (rtags-untrampify (rtags-buffer-file-name unsaved)) tempfile) arguments)
+        (when (and unsaved (setq unsaved-file (rtags-buffer-file-name unsaved)))
+          ;; GJK: hack with fixed filename to ensure the file is written remotely by TRAMP
+          (setq tempfile (concat unsaved-file ".rtags-tmp"))
+          (push (format "--unsaved-file=%s:%s" (rtags-untrampify unsaved-file) (rtags-untrampify tempfile)) arguments)
           (with-current-buffer unsaved
             (save-restriction
               (widen)
@@ -4912,7 +4914,7 @@ so it knows what files may be queried which helps with responsiveness.
                      (push (cons buf nil) list))
                     (t))) (buffer-list))
       (setq arg (concat "--set-buffers=" (mapconcat (lambda (arg)
-                                                      (concat (if (cdr arg) "+" "-") (rtags-buffer-file-name (car arg)))) list ";")))
+                                                      (concat (if (cdr arg) "+" "-") (rtags-untrampify (rtags-buffer-file-name (car arg))))) list ";")))
       (when rtags-rc-log-enabled
         (rtags-log (concat "--set-buffers files: " arg)))
       (when (not (string= rtags-previous-buffer-list arg))
